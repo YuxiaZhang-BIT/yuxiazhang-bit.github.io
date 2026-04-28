@@ -64,6 +64,92 @@
       color: #000 !important;
       text-decoration: none;
     }
+
+    /* Publication search & filter */
+    .pub-filter-bar {
+      margin-bottom: 1.25rem;
+      padding: 1rem 1.25rem;
+      background: #f9f9f9;
+      border: 1px solid #e3e3e3;
+      border-radius: 0.25rem;
+    }
+
+    .pub-search-input {
+      width: 100%;
+      padding: 0.5rem 0.75rem 0.5rem 2.25rem;
+      font-size: 0.875rem;
+      border: 1px solid #ccc;
+      border-radius: 0.25rem;
+      outline: none;
+      box-sizing: border-box;
+      transition: border-color 0.2s;
+    }
+
+    .pub-search-input:focus {
+      border-color: #4b9f82;
+      box-shadow: 0 0 0 0.125rem rgba(75, 159, 130, 0.15);
+    }
+
+    .pub-search-wrap {
+      position: relative;
+    }
+
+    .pub-search-icon {
+      position: absolute;
+      left: 0.75rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #999;
+      pointer-events: none;
+    }
+
+    .pub-year-pills {
+      margin-top: 0.625rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.375rem;
+    }
+
+    .pub-year-pill {
+      display: inline-block;
+      padding: 0.1875rem 0.625rem;
+      font-size: 0.75rem;
+      border: 1px solid #ccc;
+      border-radius: 0.75rem;
+      cursor: pointer;
+      background: #fff;
+      color: #555;
+      transition: all 0.15s;
+      user-select: none;
+    }
+
+    .pub-year-pill:hover {
+      border-color: #4b9f82;
+      color: #013a1e;
+    }
+
+    .pub-year-pill.active {
+      background: #4b9f82;
+      border-color: #4b9f82;
+      color: #fff;
+    }
+
+    .pub-no-results {
+      padding: 1.25rem 0;
+      color: #999;
+      font-style: italic;
+      display: none;
+    }
+
+    .pub-result-count {
+      margin-top: 0.5rem;
+      font-size: 0.75rem;
+      color: #999;
+    }
+
+    .pub-hidden {
+      display: none !important;
+    }
   </style>
 
 </head>
@@ -106,8 +192,17 @@
           <div class="bs-component">
             <h2></h2>
 
-            
-            <ul>
+            <div class="pub-filter-bar">
+              <div class="pub-search-wrap">
+                <span class="pub-search-icon fa fa-search"></span>
+                <input type="text" class="pub-search-input" id="pubSearch" placeholder="Search by title, author, or venue..." autocomplete="off">
+              </div>
+              <div class="pub-year-pills" id="pubYearPills"></div>
+              <div class="pub-result-count" id="pubResultCount"></div>
+            </div>
+            <div class="pub-no-results" id="pubNoResults">No publications match your search.</div>
+
+            <ul id="pubList">
               <li>
               <b><font size = "3" color="#013a1e">[TSE'26] </font></b> <b> An Empirical Study of Overlooked Code Review
                 Comments in OSS Projects</b> 
@@ -509,6 +604,87 @@
   <!--container-->
   <script src="./index_files/jquery-1.10.2.min.js"></script>
   <script src="./index_files/bootstrap.min.js"></script>
+
+  <script>
+  (function() {
+    var list = document.getElementById('pubList');
+    var items = list.querySelectorAll('li');
+    var searchInput = document.getElementById('pubSearch');
+    var pillsContainer = document.getElementById('pubYearPills');
+    var noResults = document.getElementById('pubNoResults');
+    var resultCount = document.getElementById('pubResultCount');
+    var activeYear = null;
+
+    // Extract years from venue tags like [ICSE'26]
+    var yearsSet = {};
+    items.forEach(function(item) {
+      var match = item.textContent.match(/\b(20\d{2})\b/);
+      if (match) {
+        item.setAttribute('data-year', match[1]);
+        yearsSet[match[1]] = true;
+      }
+    });
+
+    // Build year pills (sorted descending)
+    var years = Object.keys(yearsSet).sort(function(a, b) { return b - a; });
+    var allPill = document.createElement('span');
+    allPill.className = 'pub-year-pill active';
+    allPill.textContent = 'All';
+    allPill.setAttribute('data-year', '');
+    pillsContainer.appendChild(allPill);
+
+    years.forEach(function(year) {
+      var pill = document.createElement('span');
+      pill.className = 'pub-year-pill';
+      pill.textContent = year;
+      pill.setAttribute('data-year', year);
+      pillsContainer.appendChild(pill);
+    });
+
+    function filterPublications() {
+      var query = searchInput.value.toLowerCase().trim();
+      var visible = 0;
+
+      items.forEach(function(item) {
+        var text = item.textContent.toLowerCase();
+        var yearMatch = !activeYear || item.getAttribute('data-year') === activeYear;
+        var textMatch = !query || text.indexOf(query) !== -1;
+        var show = yearMatch && textMatch;
+
+        item.style.display = show ? '' : 'none';
+        // Also hide the <br/> spacer that follows each <li>
+        var next = item.nextElementSibling;
+        if (next && next.tagName === 'BR') {
+          next.style.display = show ? '' : 'none';
+        }
+        if (show) visible++;
+      });
+
+      noResults.style.display = visible === 0 ? 'block' : 'none';
+      if (query || activeYear) {
+        resultCount.textContent = visible + ' of ' + items.length + ' publications';
+        resultCount.style.display = 'block';
+      } else {
+        resultCount.style.display = 'none';
+      }
+    }
+
+    searchInput.addEventListener('input', filterPublications);
+
+    pillsContainer.addEventListener('click', function(e) {
+      var pill = e.target;
+      if (!pill.classList.contains('pub-year-pill')) return;
+
+      pillsContainer.querySelectorAll('.pub-year-pill').forEach(function(p) {
+        p.classList.remove('active');
+      });
+      pill.classList.add('active');
+
+      activeYear = pill.getAttribute('data-year') || null;
+      filterPublications();
+    });
+  })();
+  </script>
 
   <div class="mpa-sc mpa-plugin-article-gatherer mpa-new mpa-rootsc" data-z="100" style="display: block;"
     id="mpa-rootsc-article-gatherer"></div>
